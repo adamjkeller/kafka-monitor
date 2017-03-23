@@ -3,6 +3,7 @@
 import requests
 import json
 
+from sys import argv
 from random import choice
 from kafka_commands import KafkaCommands
 
