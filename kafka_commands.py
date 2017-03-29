@@ -5,7 +5,7 @@ import subprocess
 
 class KafkaCommands(object):
 
-    def __init__(self, zk='zookeeper-internal-akeller.ng.cloudpassage.com'):
+    def __init__(self, zk):
         self.zk = zk
 
     def run_proc(self, command):
