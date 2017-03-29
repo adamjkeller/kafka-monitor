@@ -14,9 +14,9 @@ from sys import exit
 
 """
 TODO:
-1) Add logic to see if we're at MIN_RF for ISR but we have DESIRED_RF brokers available, rebalance across desired
-2) Ensure that the json output has no quotes in the list for random brokers and the regular broker list
-3) Dynamically grab the number of partitions and pass that to json creation class
+1) Add logic to see if we're at MIN_RF for ISR but we have DESIRED_RF brokers available, rebalance across desired.
+2) Ensure that the json output has no quotes in the list for random brokers and the regular broker list.
+3) Dynamically grab the number of partitions and pass that to json creation class.
 """
 
 
