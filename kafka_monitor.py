@@ -15,8 +15,6 @@ from sys import exit
 """
 TODO:
 1) Add logic to see if we're at MIN_RF for ISR but we have DESIRED_RF brokers available, rebalance across desired.
-2) Ensure that the json output has no quotes in the list for random brokers and the regular broker list.
-3) Dynamically grab the number of partitions and pass that to json creation class.
 """
 
 
@@ -60,6 +58,7 @@ class KafkaMonitor(object):
 
         topic_output = self.get_topic_details(topic=topic)
         topic_list = topic_output[0].replace('\t', '\n').splitlines()
+        partition_count = next(r.split(':') for r in topic_list if 'PartitionCount' in r)[1]
         rf = next(r.split(':') for r in topic_list if 'ReplicationFactor' in r)[1]
         isr = [x.split()[1] for x in topic_list if 'Isr:' in x]
 
@@ -68,15 +67,15 @@ class KafkaMonitor(object):
             if int(rf) != len(brokers_isr.split(',')) and int(rf) > len(brokers_isr.split(',')):
 
                 logging.info("Isr count: {0} does NOT match RF: {1}".format(len(brokers_isr.split(',')), rf))
-                return True, rf
+                return True, rf, partition_count
 
             elif int(rf) < self.min_rf:
 
                 logging.error("Isr count: {0} is less than expected RF of {1}".format(rf, self.min_rf))
-                return True, rf
+                return True, rf, partition_count
 
         logging.info("Isr count: {0} matches RF: {1}".format(len(brokers_isr.split(',')), rf))
-        return False, rf
+        return False, rf, partition_count
 
     def validate_rf_broker_ratio(self, brokers, rf, count=0):
         if len(brokers) < rf:
@@ -102,31 +101,27 @@ class KafkaMonitor(object):
 
             return brokers
 
-    def write_json_file(self, data, file_name):
-        with open(file_name, 'w') as f:
-            f.write(data)
-
-    def prepare_topic_for_rebalance(self, topic, active_brokers, all_brokers=None, search_replace=False):
+    def prepare_topic_for_rebalance(self, topic, active_brokers, all_brokers=None, partitions=32, search_replace=False):
 
         if search_replace:
 
             if len(all_brokers) < self.desired_rf:
                 self.desired_rf = len(all_brokers)
 
-            random_brokers = ",".join(sample(set(all_brokers), self.desired_rf)).split(',').strip('"')
+            random_brokers = ",".join(sample(set(all_brokers), self.desired_rf)).split(',')
             logging.info("Randomized broker list: {0}".format(random_brokers))
             partition_scheme_json = CreateJson.generate_json_template(
-                topic=topic, partition_list=50, replicas=random_brokers
+                topic=topic, partition_list=partitions, replicas=random_brokers
             )
             logging.info("New Partition Scheme: {0}".format(partition_scheme_json))
-            self.write_json_file(data=partition_scheme_json, file_name='/tmp/reassign.json')
+            CreateJson.write_json_file(data=partition_scheme_json, file_name='/tmp/reassign.json')
 
         else:
             partition_scheme_json = CreateJson.generate_json_template(
-                topic=topic, partition_list=50, replicas=active_brokers
+                topic=topic, partition_list=partitions, replicas=active_brokers
             )
             logging.info("New Partition Scheme: {0}".format(partition_scheme_json))
-            self.write_json_file(data=partition_scheme_json, file_name='/tmp/reassign.json')
+            CreateJson.write_json_file(data=partition_scheme_json, file_name='/tmp/reassign.json')
 
     def apply_rebalance(self):
         return KafkaCommands(zk=self.zookeeper_elb).apply_reassignment_json(
@@ -135,20 +130,21 @@ class KafkaMonitor(object):
 
     def validate_rebalance(self):
         response = KafkaCommands(zk=self.zookeeper_elb).verify_reassignment(file_name='/tmp/reassign.json')
+        logging.info("STATUS: {0}".format(response))
 
         if 'is still in progress' in response:
-
             logging.info("WAITING ON REASSIGNMENT TO COMPLETE. CURRENT STATUS: {0}".format(response))
             sleep(10)
             self.validate_rebalance()  # TODO: Add counter
-
+        elif 'failure' in response:
+            logging.error("FAILURE: REBALANCE FAILED, PLEASE INVESTIGATE: {0}".format(response))
         else:
-
             logging.info("SUCCESS: REBALANCE COMPLETE!")
 
     def rebalance_topic(self, active_brokers, topic):
-        rebalance, rf = self.compare_topic_isr_per_partition(topic=topic)
+        rebalance, rf, partitions = self.compare_topic_isr_per_partition(topic=topic)
         replication_factor = int(rf)
+        partition_count = int(partitions)
 
         logging.info("REBALANCE: {0} CURRENT RF: {1} ACIVE BROKERS: {2} TOPIC: {3}".format(
             rebalance,
@@ -159,26 +155,31 @@ class KafkaMonitor(object):
         )
 
         if replication_factor < self.min_rf or len(active_brokers) < self.min_rf:
-            log_msg = "UNABLE TO PROCEED: MINIMUM REQUIREMENT OF ISR IS: {0}, AND WE HAVE {1} ACTIVE BROKERS.".format(
-                self.min_rf, active_brokers)
-            logging.error(log_msg)
+            logging.error("UNABLE TO PROCEED: MINIMUM REQUIREMENT OF ISR IS: {0}, AND WE HAVE {1} ACTIVE BROKERS.".format(
+                self.min_rf, active_brokers))
             exit(99)
 
         if rebalance:
 
             if replication_factor <= self.min_rf or replication_factor > self.desired_rf:
+
                 self.prepare_topic_for_rebalance(topic=topic,
                                                  all_brokers=active_brokers,
                                                  active_brokers=active_brokers[:replication_factor],
+                                                 partitions=partition_count,
                                                  search_replace=True)
 
             elif replication_factor >= self.min_rf and len(active_brokers) < replication_factor:
+
+                logging.info("{0} >= {1} && {2} < {0}".format(replication_factor, self.min_rf, len(active_brokers)))
                 self.prepare_topic_for_rebalance(topic=topic,
                                                  all_brokers=active_brokers,
                                                  active_brokers=active_brokers[:replication_factor],
+                                                 partitions=partition_count,
                                                  search_replace=True)
             else:
-                self.prepare_topic_for_rebalance(topic=topic, active_brokers=active_brokers)
+
+                self.prepare_topic_for_rebalance(topic=topic, active_brokers=active_brokers, partitions=partition_count)
 
             self.apply_rebalance()
             self.validate_rebalance()
@@ -188,7 +189,7 @@ class KafkaMonitor(object):
             logging.info("NO NEED TO REBALANCE, TOPIC {0} IS HEALTHY".format(topic))
 
     def main(self, topic_name):
-        rebalance, rf = self.compare_topic_isr_per_partition(topic=topic_name)
+        rebalance, rf, partition_count = self.compare_topic_isr_per_partition(topic=topic_name)
 
         if rebalance:
 

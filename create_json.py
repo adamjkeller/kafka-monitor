@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import json
+from ast import literal_eval
 
 
 class CreateJson(object):
@@ -11,7 +12,8 @@ class CreateJson(object):
 
     @staticmethod
     def add_partitions(topic, partition, replicas):
-        return {"topic":topic,"partition":partition,"replicas":replicas}
+        formatted_replicas = "[{0}]".format(",".join(replicas).replace("'",""))
+        return {"topic":topic,"partition":partition,"replicas":literal_eval(formatted_replicas)}
 
     @staticmethod
     def generate_json_template(topic, partition_list, replicas):
@@ -23,6 +25,10 @@ class CreateJson(object):
 
         return json.dumps(json_blob)
 
+    @staticmethod
+    def write_json_file(data, file_name):
+        with open(file_name, 'w') as f:
+            f.write(data)
 
 if __name__ == '__main__':
     topic = ['__consumer_offsets']
