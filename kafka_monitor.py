@@ -12,6 +12,13 @@ from log import SetLogging
 from args import Args
 from sys import exit
 
+"""
+TODO:
+1) Add logic to see if we're at MIN_RF for ISR but we have DESIRED_RF brokers available, rebalance across desired
+2) Ensure that the json output has no quotes in the list for random brokers and the regular broker list
+3) Dynamically grab the number of partitions and pass that to json creation class
+"""
+
 
 class KafkaMonitor(object):
 
@@ -106,7 +113,7 @@ class KafkaMonitor(object):
             if len(all_brokers) < self.desired_rf:
                 self.desired_rf = len(all_brokers)
 
-            random_brokers = ",".join(sample(set(all_brokers), self.desired_rf)).split(',')
+            random_brokers = ",".join(sample(set(all_brokers), self.desired_rf)).split(',').strip('"')
             logging.info("Randomized broker list: {0}".format(random_brokers))
             partition_scheme_json = CreateJson.generate_json_template(
                 topic=topic, partition_list=50, replicas=random_brokers
