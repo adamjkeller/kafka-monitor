@@ -74,6 +74,10 @@ class KafkaMonitor(object):
                 logging.error("Isr count: {0} is less than expected RF of {1}".format(rf, self.min_rf))
                 return True, rf, partition_count
 
+        if self.get_broker_ids() >= self.desired_rf:
+            logging.info("Isr count: {0} does NOT match RF: {1}".format(len(brokers_isr.split(',')), rf))
+            return True, rf, partition_count
+
         logging.info("Isr count: {0} matches RF: {1}".format(len(brokers_isr.split(',')), rf))
         return False, rf, partition_count
 
