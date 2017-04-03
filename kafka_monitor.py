@@ -158,7 +158,7 @@ class KafkaMonitor(object):
             )
         )
 
-        if replication_factor < self.min_rf or len(active_brokers) < self.min_rf:
+        if len(active_brokers) < self.min_rf:
             logging.error("UNABLE TO PROCEED: MINIMUM REQUIREMENT OF ISR IS: {0}, AND WE HAVE {1} ACTIVE BROKERS.".format(
                 self.min_rf, active_brokers))
             exit(99)
