@@ -1,21 +1,17 @@
-#!usr/bin/env python
+#!/usr/bin/env python
 
 import requests
 import json
 import logging
 
-from kafka_commands import KafkaCommands
-from create_json import CreateJson
 from time import sleep
 from random import sample
-from log import SetLogging
-from args import Args
 from sys import exit
 
-"""
-TODO:
-1) Add logic to see if we're at MIN_RF for ISR but we have DESIRED_RF brokers available, rebalance across desired.
-"""
+from kafka_helpers.kafka_commands import KafkaCommands
+from helpers.create_json import CreateJson
+from helpers.log import SetLogging
+from helpers.args import Args
 
 
 class KafkaMonitor(object):
