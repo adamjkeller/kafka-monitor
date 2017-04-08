@@ -65,17 +65,13 @@ class KafkaMonitor(object):
 
             if int(rf) != len(brokers_isr.split(',')) and int(rf) > len(brokers_isr.split(',')):
 
-                self.logger("info", "Isr count: {0} does NOT match RF: {1}".format(len(brokers_isr.split(',')), rf))
+                self.logger("info", "Isr count: {0} does NOT match desired RF: {1}".format(len(brokers_isr.split(',')), rf))
                 return True, rf, partition_count
 
             elif int(rf) < self.min_rf:
 
                 self.logger("error", "Isr count: {0} is less than expected RF of {1}".format(rf, self.min_rf))
                 return True, rf, partition_count
-
-        if self.get_broker_ids() >= self.desired_rf:
-            self.logger("info", "Isr count: {0} does NOT match RF: {1}".format(len(brokers_isr.split(',')), rf))
-            return True, rf, partition_count
 
         self.logger("info", "Isr count: {0} matches RF: {1}".format(len(brokers_isr.split(',')), rf))
         return False, rf, partition_count
