@@ -2,11 +2,9 @@
 
 import requests
 import json
-import logging
 
 from time import sleep
 from random import sample
-from sys import exit
 
 from kafka_helpers.kafka_commands import KafkaCommands
 from helpers.create_json import CreateJson
@@ -16,11 +14,9 @@ from helpers.args import Args
 
 class KafkaMonitor(object):
 
-    def __init__(self, stackname, domain):
-        self.stackname = stackname
-        self.domain = domain
-        self.exhibitor_endpoint = 'http://zookeeper-internal-{0}.{1}:8080'.format(stackname, domain)
-        self.zookeeper_elb = 'zookeeper-internal-{0}.{1}'.format(stackname, domain)
+    def __init__(self, exhibitor, zookeeper):
+        self.exhibitor_endpoint = exhibitor
+        self.zookeeper_elb = zookeeper
         self.desired_rf = 3
         self.min_rf = 2
 
@@ -38,11 +34,10 @@ class KafkaMonitor(object):
 
         else:
 
-            self.logger(level='error',details="There has been a problem with your request. Status Code: {0} -- ERROR OUTPUT: {0}".format(
-                response.status_code,
-                response.text)
-            )
-            exit(200)
+            self.logger(level='error',
+                        details="There has been a problem with your request. Status Code: {0} -- ERROR OUTPUT: {1}"
+                        .format(response.status_code, response.text),
+                        exit_code=200)
 
     def set_broker_list(self, payload):
         json_data = json.loads(payload)
@@ -201,4 +196,4 @@ class KafkaMonitor(object):
 
 if __name__ == '__main__':
     args = Args.get_args()
-    KafkaMonitor(stackname=args.stackname, domain=args.domain).main(topic_name=args.topic)
+    KafkaMonitor(exhibitor=args.exhibitor, zookeeper=args.zookeeper).main(topic_name=args.topic)
